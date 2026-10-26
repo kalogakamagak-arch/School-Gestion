@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestion Scolaire</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f4f9; margin: 0; padding: 20px; }
+        .container { max-width: 800px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        .hidden { display: none; }
+        .btn { padding: 10px 20px; margin: 10px 0; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; width: 100%; }
+        .btn-admin { background-color: #d9534f; color: white; }
+        .btn-user { background-color: #0275d8; color: white; }
+        .btn-action { background-color: #5cb85c; color: white; }
+        input { width: 100%; padding: 10px; margin: 5px 0; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .header-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- PAGE D'ACCUEIL -->
+    <div id="home-page">
+        <h1>Bienvenue sur le portail de Gestion Scolaire</h1>
+        <p>Veuillez choisir votre espace :</p>
+        <button class="btn btn-admin" onclick="showLogin('admin')">🔑 Espace Administrateur</button>
+        <button class="btn btn-user" onclick="showLogin('user')">👨‍🎓 Espace Utilisateur</button>
+    </div>
+
+    <!-- PAGE DE CONNEXION -->
+    <div id="login-page" class="hidden">
+        <div class="header-nav">
+            <h2 id="login-title">Connexion</h2>
+            <button onclick="goHome()" style="background:none; border:none; cursor:pointer; color:red;">Retour</button>
+        </div>
+        <input type="email" id="email" placeholder="Email">
+        <input type="password" id="password" placeholder="Mot de passe">
+        <button class="btn btn-action" onclick="login()">Se connecter</button>
+    </div>
+
+    <!-- TABLEAU DE BORD ADMINISTRATEUR -->
+    <div id="admin-dashboard" class="hidden">
+        <div class="header-nav">
+            <h2>Tableau de bord Administrateur</h2>
+            <button onclick="logout()" style="background:none; border:none; cursor:pointer; color:red;">Déconnexion</button>
+        </div>
+        
+        <h3>Inscrire un nouvel élève</h3>
+        <input type="text" id="student-name" placeholder="Nom de l'élève (ex: Lucas Martin)">
+        <input type="text" id="student-class" placeholder="ID de la classe (ex: classe_terminale_A)">
+        <input type="text" id="student-parent" placeholder="ID du parent (ex: parent_jean_uid)">
+        <button class="btn btn-action" onclick="ajouterEleveDepuisUI()">Ajouter l'élève</button>
+        
+        <h3>Liste des élèves</h3>
+        <table id="student-table">
+            <thead>
+                <tr>
+                    <th>Nom</th>
+                    <th>Classe</th>
+                    <th>Parent ID</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Les élèves s'afficheront ici -->
+            </tbody>
+        </table>
+    </div>
+
+    <!-- TABLEAU DE BORD UTILISATEUR -->
+    <div id="user-dashboard" class="hidden">
+        <div class="header-nav">
+            <h2>Espace Utilisateur</h2>
+            <button onclick="logout()" style="background:none; border:none; cursor:pointer; color:red;">Déconnexion</button>
+        </div>
+        <p>Bienvenue ! Vous pouvez consulter la liste des élèves ci-dessous.</p>
+        <table id="user-student-table">
+            <thead>
+                <tr>
+                    <th>Nom</th>
+                    <th>Classe</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Les élèves s'afficheront ici -->
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- FIREBASE SDK VERSION 10 (CDN) -->
+<script type="module">
+    // 1. IMPORTATION DES FONCTIONS FIREBASE
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+    import { getAuth, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
+    import { getFirestore, collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+
+    // 2. VOTRE CONFIGURATION FIREBASE (Basée sur votre message)
+    const firebaseConfig = {
+        apiKey: "VOTRE_API_KEY", // ⚠️ REMPLACEZ CECI PAR VOTRE VRAIE CLÉ API
+        authDomain: "gestion-b5ad2.firebaseapp.com",
+        projectId: "gestion-b5ad2",
+        storageBucket: "gestion-b5ad2.firebasestorage.app",
+        // Ajoutez messagingSenderId et appId si vous les avez dans la console Firebase
+    };
+
+    // Initialisation
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    let currentMode = 'user'; 
+
+    // --- GESTION DE L'INTERFACE (UI) ---
+    window.showLogin = (mode) => {
+        currentMode = mode;
+        document.getElementById('home-page').classList.add('hidden');
+        document.getElementById('login-page').classList.remove('hidden');
+        document.getElementById('login-title').innerText = mode === 'admin' ? "Connexion Administrateur" : "Connexion Utilisateur";
+    };
+
+    window.goHome = () => {
+        document.getElementById('login-page').classList.add('hidden');
+        document.getElementById('home-page').classList.remove('hidden');
+        document.getElementById('email').value = '';
+        document.getElementById('password').value = '';
+    };
+
+    window.logout = () => {
+        signOut(auth).then(() => {
+            document.getElementById('admin-dashboard').classList.add('hidden');
+            document.getElementById('user-dashboard').classList.add('hidden');
+            goHome();
+        });
+    };
+
+    // --- GESTION DE LA CONNEXION ---
+    window.login = () => {
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+
+        signInWithEmailAndPassword(auth, email, password)
+            .then(() => {
+                if (currentMode === 'admin') {
+                    document.getElementById('login-page').classList.add('hidden');
+                    document.getElementById('admin-dashboard').classList.remove('hidden');
+                    loadStudents(true);
+                } else {
+                    document.getElementById('login-page').classList.add('hidden');
+                    document.getElementById('user-dashboard').classList.remove('hidden');
+                    loadStudents(false);
+                }
+            })
+            .catch((error) => {
+                alert("Erreur de connexion : " + error.message);
+            });
+    };
+
+    // --- VOTRE FONCTION AJOUTER ELEVE (Adaptée pour l'interface) ---
+    window.ajouterEleveDepuisUI = async () => {
+        // On récupère les valeurs des champs de texte
+        const nom = document.getElementById('student-name').value;
+        const classeId = document.getElementById('student-class').value;
+        const parentId = document.getElementById('student-parent').value;
+
+        if (!nom || !classeId) {
+            alert("Le nom et la classe sont obligatoires.");
+            return;
+        }
+
+        // C'est ici qu'on utilise VOTRE code !
+        try {
+            const docRef = await addDoc(collection(db, "students"), {
+                name: nom,
+                classId: classeId,
+                parentId: parentId || "non_renseigne",
+                createdAt: new Date()
+            });
+            console.log("Élève inscrit avec succès ! ID :", docRef.id);
+            alert("Élève inscrit avec succès !");
+            
+            // On vide les champs et on recharge le tableau
+            document.getElementById('student-name').value = '';
+            document.getElementById('student-class').value = '';
+            document.getElementById('student-parent').value = '';
+            loadStudents(true);
+            
+        } catch (error) {
+            console.error("Erreur lors de l'inscription :", error);
+            alert("Erreur d'ajout. Vérifiez les règles de sécurité Firebase.");
+        }
+    };
+
+    // --- CHARGEMENT DES DONNÉES ---
+    async function loadStudents(isAdmin) {
+        // On lit la collection "students" (comme dans votre code)
+        const querySnapshot = await getDocs(collection(db, "students"));
+        const adminTable = document.getElementById('student-table').getElementsByTagName('tbody')[0];
+        const userTable = document.getElementById('user-student-table').getElementsByTagName('tbody')[0];
+        
+        adminTable.innerHTML = '';
+        userTable.innerHTML = '';
+
+        querySnapshot.forEach((doc) => {
+            const data = doc.data();
+            
+            // Pour l'admin
+            let rowAdmin = adminTable.insertRow();
+            rowAdmin.innerHTML = `
+                <td>${data.name}</td>
+                <td>${data.classId}</td>
+                <td>${data.parentId}</td>
+            `;
+
+            // Pour l'utilisateur
+            let rowUser = userTable.insertRow();
+            rowUser.innerHTML = `
+                <td>${data.name}</td>
+                <td>${data.classId}</td>
+            `;
+        });
+    }
+</script>
+
+</body>
+</html>
